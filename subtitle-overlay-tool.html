@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>图片字幕拼接工具</title>
+    <style>
+        body {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            resize: vertical;
+        }
+        #output {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .file-input-button {
+            padding: 10px 20px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .preview-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        #imagePreview {
+            max-width: 100%;
+            max-height: 400px;
+            display: none;
+            margin: 0 auto;
+        }
+        .subtitle-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .option-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input[type="color"], input[type="range"] {
+            width: 100%;
+        }
+        .download-button {
+            background-color: #ff9800;
+            margin-top: 10px;
+        }
+        .download-button:hover {
+            background-color: #e68a00;
+        }
+        .instructions {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4CAF50;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        .instructions ol {
+            margin-bottom: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>图片字幕拼接工具</h1>
+        
+        <div class="instructions">
+            <h3>使用说明</h3>
+            <ol>
+                <li>点击"选择图片"按钮上传一张图片</li>
+                <li>在文本框中输入字幕内容，每行一条字幕</li>
+                <li>调整字幕样式（颜色、大小、背景等）</li>
+                <li>点击"生成字幕图片"按钮</li>
+                <li>点击"下载图片"保存结果</li>
+            </ol>
+        </div>
+        
+        <div class="controls">
+            <div class="file-input-wrapper">
+                <button class="file-input-button">选择图片</button>
+                <input type="file" id="imageInput" accept="image/*">
+            </div>
+            <button onclick="resetTool()">重置</button>
+        </div>
+        
+        <div class="preview-container">
+            <img id="imagePreview" alt="图片预览">
+        </div>
+        
+        <textarea id="subtitles" placeholder="请输入字幕文本，每行一句..."></textarea>
+        
+        <div class="subtitle-options">
+            <div class="option-group">
+                <label for="textColor">字体颜色</label>
+                <input type="color" id="textColor" value="#ffffff">
+            </div>
+            
+            <div class="option-group">
+                <label for="strokeColor">描边颜色</label>
+                <input type="color" id="strokeColor" value="#000000">
+            </div>
+            
+            <div class="option-group">
+                <label for="fontSize">字体大小</label>
+                <input type="range" id="fontSize" min="3" max="10" value="5" step="0.5">
+                <span id="fontSizeValue">5%</span>
+            </div>
+            
+            <!-- 移除背景透明度设置选项，改为使用原图底部作为背景 -->
+        </div>
+        
+        <button onclick="generateImage()">生成字幕图片</button>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        let originalImage = null;
+
+        // 更新滑块值显示
+        document.getElementById('fontSize').addEventListener('input', function() {
+            document.getElementById('fontSizeValue').textContent = this.value + '%';
+        });
+        
+        // 移除背景透明度监听器，因为我们将使用原图底部作为背景
+
+        // 图片上传处理
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    originalImage = new Image();
+                    originalImage.onload = function() {
+                        // 显示图片预览
+                        const preview = document.getElementById('imagePreview');
+                        preview.src = originalImage.src;
+                        preview.style.display = 'block';
+                    };
+                    originalImage.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 重置工具
+        function resetTool() {
+            document.getElementById('imageInput').value = '';
+            document.getElementById('subtitles').value = '';
+            document.getElementById('output').innerHTML = '';
+            document.getElementById('imagePreview').style.display = 'none';
+            document.getElementById('textColor').value = '#ffffff';
+            document.getElementById('strokeColor').value = '#000000';
+            document.getElementById('fontSize').value = '5';
+            document.getElementById('fontSizeValue').textContent = '5%';
+            originalImage = null;
+        }
+
+        // 生成字幕图片
+        function generateImage() {
+            if (!originalImage) {
+                alert('请先选择图片！');
+                return;
+            }
+
+            const subtitles = document.getElementById('subtitles').value
+                .split('\n')
+                .filter(line => line.trim());
+
+            if (subtitles.length === 0) {
+                alert('请输入字幕文本！');
+                return;
+            }
+
+            const output = document.getElementById('output');
+            output.innerHTML = '';
+
+            // 获取用户设置
+            const textColor = document.getElementById('textColor').value;
+            const strokeColor = document.getElementById('strokeColor').value;
+            const fontSizePercent = parseFloat(document.getElementById('fontSize').value);
+            
+            // 设置字幕样式参数
+            const fontSize = Math.floor(originalImage.height * (fontSizePercent / 100));
+            const lineHeight = fontSize * 1.5;
+            const singleSubtitleHeight = lineHeight; // 单行字幕高度
+            
+            // 创建画布 - 根据字幕行数动态调整高度
+            const canvas = document.createElement('canvas');
+            canvas.width = originalImage.width;
+            
+            // 新布局：第一行字幕在原图底部，后续行在原图下方叠加
+            // 计算新的画布高度：原图高度 + (字幕行数-1) * 单行字幕高度
+            const additionalHeight = subtitles.length > 1 ? (subtitles.length - 1) * singleSubtitleHeight : 0;
+            canvas.height = originalImage.height + additionalHeight;
+            
+            const ctx = canvas.getContext('2d');
+            
+            // 绘制原始图片
+            ctx.drawImage(originalImage, 0, 0);
+            
+            // 设置字幕样式
+            ctx.font = `bold ${fontSize}px Arial, "Microsoft YaHei", sans-serif`;
+            ctx.fillStyle = textColor;
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = fontSize * 0.15;
+            ctx.textAlign = 'center';
+
+            // 获取原图底部区域作为字幕背景
+            const bgSourceY = originalImage.height - singleSubtitleHeight;
+            
+            // 第一行字幕背景（使用原图底部区域）
+            // 不需要额外绘制，因为原图已经包含了这个区域
+            
+            // 后续行字幕背景（使用原图底部区域复制）
+            if (subtitles.length > 1) {
+                // 对于每一行额外的字幕，都使用原图底部区域作为背景
+                for (let i = 1; i < subtitles.length; i++) {
+                    const destY = originalImage.height + (i - 1) * singleSubtitleHeight;
+                    ctx.drawImage(originalImage, 0, bgSourceY, canvas.width, singleSubtitleHeight, 0, destY, canvas.width, singleSubtitleHeight);
+                }
+            }
+
+            // 绘制所有字幕
+            subtitles.forEach((subtitle, i) => {
+                let y;
+                if (i === 0) {
+                    // 第一行字幕位于原图底部
+                    y = originalImage.height - (singleSubtitleHeight * 0.3);
+                } else {
+                    // 后续行字幕位于原图下方
+                    y = originalImage.height + (singleSubtitleHeight * (i - 0.3));
+                }
+                
+                ctx.strokeText(subtitle, canvas.width / 2, y);
+                ctx.fillText(subtitle, canvas.width / 2, y);
+            });
+
+            // 显示结果
+            canvas.style.maxWidth = '100%';
+            canvas.style.height = 'auto';
+            output.appendChild(canvas);
+            
+            // 添加下载按钮
+            const downloadBtn = document.createElement('button');
+            downloadBtn.textContent = '下载图片';
+            downloadBtn.className = 'download-button';
+            downloadBtn.onclick = function() {
+                const link = document.createElement('a');
+                link.download = '字幕图片.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            };
+            output.appendChild(downloadBtn);
+        }
+    </script>
+</body>
+</html>
